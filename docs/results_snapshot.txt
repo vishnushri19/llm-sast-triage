@@ -63,13 +63,29 @@ False-positive triage accuracy:   1.00
 LLM missing check IDs:            0
 LLM extra check IDs:              0
 
+Evaluation target: sqlapp
+--------------------------------------------------
+Raw Semgrep findings:             1
+LLM triage clusters:              1
+Cluster compression ratio:        1.00x
+Labeled true positives:           1
+Labeled false positives:          0
+Detected labeled TPs:             1
+Detected labeled FPs:             0
+Finding-level precision:          1.00
+Finding-level recall:             1.00
+Severity accuracy:                1.00
+False-positive triage accuracy:   1.00
+LLM missing check IDs:            0
+LLM extra check IDs:              0
+
 Overall summary
 ==================================================
-Targets evaluated:                4
-Total raw findings:               8
-Total LLM clusters:               4
-Overall compression ratio:        2.00x
-Overall precision:                0.75
+Targets evaluated:                5
+Total raw findings:               9
+Total LLM clusters:               5
+Overall compression ratio:        1.80x
+Overall precision:                0.78
 Overall recall:                   1.00
 Overall severity accuracy:        1.00
 Overall FP triage accuracy:       1.00
