@@ -29,21 +29,3 @@ The current evaluation is intentionally small. It uses five Python targets cover
 The related work suggests a growing interest in LLM-assisted vulnerability detection, SAST triage, and false-positive reduction. This project takes a conservative position within that space. It does not position the LLM as the authority over scanner results. Instead, it uses a scanner-first architecture where deterministic clustering, check-ID preservation, and validation occur before LLM-generated explanations are accepted.
 
 This makes the project most relevant to teams that want LLM assistance for developer readability and triage efficiency, but do not want to weaken the evidence trail provided by SAST tools.
-
-## References
-
-[1] OWASP, "Static Code Analysis." OWASP Community Pages.
-
-[2] Semgrep, "Semgrep documentation" and "semgrep/semgrep: Lightweight static analysis for many languages."
-
-[3] Z. Li et al., "IRIS: LLM-Assisted Static Analysis for Detecting Security Vulnerabilities." arXiv, 2024.
-
-[4] M. Iranmanesh et al., "ZeroFalse: Improving Precision in Static Analysis with LLMs." arXiv, 2025.
-
-[5] M. R. Ameen, M. T. U. Alam, and A. Islam, "QASecClaw: A Multi-Agent LLM Approach for False Positive Reduction in Static Application Security Testing." arXiv, 2026.
-
-[6] J. Feiglin et al., "SastBench: A Benchmark for Testing Agentic SAST Triage." arXiv, 2026.
-
-[7] Y. Xiong et al., "A Comparative Study of LLM Agents in Vulnerability False Positive Reduction." arXiv, 2026.
-
-[8] "Reducing False Positives in Static Bug Detection with LLMs." arXiv, 2026.
