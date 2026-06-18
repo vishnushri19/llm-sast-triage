@@ -166,13 +166,35 @@ The current results are early and should not be interpreted as broad generalizat
 
 # Methodology
 
-This project evaluates a hybrid SAST triage workflow. The scanner remains the source of truth, while deterministic logic and a local LLM are used to make findings easier to review.
+The methodology evaluates whether a scanner-first LLM-assisted workflow can make SAST findings easier to triage while preserving scanner evidence. The experiment is designed around a conservative principle: Semgrep produces the security evidence, deterministic logic organizes and validates that evidence, and the local LLM is used only to enrich the final cluster with impact and remediation text.
 
-## Pipeline
+## Experimental Setup
 
-1. Semgrep scans each target application and produces raw JSON findings.
-2. Deterministic clustering groups related findings while preserving Semgrep check IDs, file paths, and line numbers.
-3. Deterministic rules classify high-confidence patterns such as command injection, code injection, SQL������ѥ����������ɑ���������䁍�̸͕(и��������=��������������ɥ���́���������ѕȁݥѠ������Ё������������ͅ��������ե������(Ը�Y�����ѥ��������́�����ɴ�ѡ�Ё���M���ɕ��������%́�ɔ��ɽ������ȁ��ٕ�ѕ����ѡ��114������и((���Q�ɝ���()Q������ѥ�����х͕Ё����Ց�́ɕ����ձ��Ʌ�����䁍�͕́�������͔���ͥѥٔ��ȁ��ɑ���������䁍�͕��((����������͕ȵ����ɽ�������ͬ�����Ёɕ����́�Չ�ɽ���́�ᕍ�ѥ���(����م�������͕ȵ����ɽ�������ͬ�����Ёɕ����́��م�����(����ű������͕ȵ����ɽ�������ͬ�����Ёɕ����́ME0��Օ�䁍�����Սѥ���(���ͅ��������Չ�ɽ���́�ͅ���ݥѡ��Ё�������Ʌѕ���͕ȵ����ɽ���������и(���ͅ���م�����聁�م������ͅ���ݥѡ��Ё�������Ʌѕ���͕ȵ����ɽ���������и((���5��ɥ��()Q����م�Յѥ���ɕ������((��I�܁M���ɕ���������̸(��114��ɥ��������ѕ�̸(�����ɕ�ͥ���Ʌѥ��(�����������ٕ���ɕ��ͥ���(�����������ٕ��ɕ�����(��M�ٕɥ�䁅���Ʌ��(����͔���ͥѥٔ��ɥ��������Ʌ��(��5��ͥ����ȁ���Ʉ�������%̸((���M�����Aɥ������()Q���114��́��Ё����ѕ��Ѽ���������٥��������ѕ�ɥ�丁%Ё�́�����͕����ѕȁ��ѕɵ����ѥ���ɽ����������م����ѥ����Q���͍����ȁ�٥�������́�ɕ͕�ٕ������������������ɔ�ɕ�ձ�́�ɔ������ѕ��(
+The prototype scans Python targets with Semgrep using Docker. Each target is a small application or code sample designed to exercise one vulnerability pattern or one hardening-only pattern. The scan output is stored as raw JSON under `data/findings/`. This raw output is treated as the source of truth for check IDs, file paths, line numbers, scanner messages, and matched code.
+
+The LLM enrichment stage uses a local Ollama model. The model receives structured context derived from Semgrep findings and returns explanation-oriented fields such as impact, minimal safe fix, and false-positive rationale. The model is not trusted to decide which findings exist. The final output is accepted only after deterministic validation confirms that scanner check IDs have not been removed or invented.
+
+## Target Selection
+
+The initial dataset contains five Python targets. Three targets represent confirmed vulnerability paths: subprocess command injection, eval-based code injection, and SQL injection. Two targets represent hardening or likely false-positive cases: subprocess usage without demonstrated user-controlled input and eval usage without demonstrated user-controlled input.
+
+The targets are intentionally small. This allows each Semgrep finding, cluster, and label to be manually inspected. The goal of this stage is not to claim broad generalization, but to validate the pipeline design, evidence-preservation logic, and evaluation metrics before scaling to larger applications.
+
+## Labeling
+
+Each target has a label file under `labels/`. A label records the expected Semgrep check ID, file path, line number, true-positive status, severity, and vulnerability category. A finding is labeled as a true positive when user-controlled input reaches a dangerous operation. A finding is labeled as false positive or hardening-only when the scanner reports a risky API or construct but the available code does not show user-controlled input reaching the operation.
+
+Severity labels are assigned based on exploitability in the small target. Confirmed command injection, code injection, and SQL injection cases are labeled High. Hardening-only eval and subprocess cases are labeled Low.
+
+## Evaluation Metrics
+
+The evaluator reports raw Semgrep findings, LLM triage clusters, cluster compression ratio, finding-level precision, finding-level recall, severity accuracy, false-positive triage accuracy, missing check IDs, and extra check IDs.
+
+The compression ratio measures how many raw findings are represented by each triage cluster. Precision and recall are computed against the manual labels. Severity accuracy checks whether the cluster severity matches the expected label severity. False-positive triage accuracy checks whether the pipeline correctly marks true vulnerabilities as not false positives and hardening-only cases as likely false positives. Missing and extra check ID counts measure evidence preservation.
+
+## Reproducibility
+
+The full experiment can be reproduced by running `python scripts/run_pipeline.py`. This executes scanning, triage, and evaluation in order. The repository also includes a results snapshot, evaluation table, experiment manifest, and reproducibility guide so that the reported baseline can be inspected without relying only on generated local artifacts.
 
 # Results
 
