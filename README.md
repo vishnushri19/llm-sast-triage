@@ -50,3 +50,15 @@ Create and activate a Python 3.12 virtual environment, then install dependencies
 
 pip install -r requirements.txt
 
+
+
+## Research Artifacts
+
+- Paper draft: `paper/paper_draft.md`
+- Abstract: `paper/abstract.md`
+- Methodology: `paper/methodology.md`
+- Results: `paper/results.md`
+- Limitations: `paper/limitations.md`
+- Evaluation table: `docs/evaluation_table.md`
+- Reproducibility guide: `docs/reproducibility.md`
+- Results snapshot: `docs/results_snapshot.txt`
