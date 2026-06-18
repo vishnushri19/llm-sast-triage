@@ -1,0 +1,9 @@
+semgrep==1.82.0
+openai
+python-dotenv
+pydantic
+pandas
+tqdm
+rich
+PyYAML
+requests
