@@ -31,3 +31,4 @@ reports/
 # Downloaded vulnerable targets
 targets/*
 !targets/.gitkeep
+~$*.docx
