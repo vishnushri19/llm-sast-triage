@@ -157,6 +157,9 @@ def cluster_name_for_items(items):
     if any(has_user_controlled_source(r) and contains_code_injection_signal(r) for r in items):
         return "Code Injection"
 
+    if any(contains_code_injection_signal(r) for r in items):
+        return "Eval Usage Hardening"
+
     if any_user_controlled and any_command_injection:
         return "Command Injection"
 
@@ -184,6 +187,9 @@ def practical_severity_for_items(items):
     if any(has_user_controlled_source(r) and contains_code_injection_signal(r) for r in items):
         return "High"
 
+    if any(contains_code_injection_signal(r) for r in items):
+        return "Low"
+
     if any_user_controlled and any_command_injection:
         return "High"
 
@@ -210,6 +216,12 @@ def false_positive_decision_for_items(items):
         return (
             "No",
             "Semgrep reports user-controlled input reaching eval-style code execution."
+        )
+
+    if any(contains_code_injection_signal(r) for r in items):
+        return (
+            "Yes",
+            "Semgrep reports eval-style execution, but no user-controlled input is shown reaching the expression."
         )
 
     if any_user_controlled and any_command_injection:
