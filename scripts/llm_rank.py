@@ -15,7 +15,6 @@ RANKINGS_DIR.mkdir(parents=True, exist_ok=True)
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
 
-
 SEVERITY_RANK = {
     "Low": 1,
     "Medium": 2,
@@ -32,127 +31,190 @@ def write_json(path, data):
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
-def first_nonempty(values, default=None):
-    for v in values:
-        if v:
-            return v
-    return default
+def get_extra(result):
+    return result.get("extra", {}) or {}
 
 
 def get_metadata(result):
-    return result.get("extra", {}).get("metadata", {}) or {}
+    return get_extra(result).get("metadata", {}) or {}
 
 
 def get_message(result):
-    return result.get("extra", {}).get("message", "") or ""
+    return get_extra(result).get("message", "") or ""
 
 
 def get_code_line(result):
-    return result.get("extra", {}).get("lines", "") or ""
+    return get_extra(result).get("lines", "") or ""
 
 
 def get_line(result):
     return result.get("start", {}).get("line")
 
 
-def get_vulnerability_class(result):
-    metadata = get_metadata(result)
-    values = metadata.get("vulnerability_class", [])
-    if isinstance(values, list) and values:
-        return values[0]
-    if isinstance(values, str):
+def get_check_id(result):
+    return result.get("check_id", "") or ""
+
+
+def get_vulnerability_classes(result):
+    values = get_metadata(result).get("vulnerability_class", [])
+    if isinstance(values, list):
         return values
-    return None
-
-
-def get_cwe(result):
-    metadata = get_metadata(result)
-    values = metadata.get("cwe", [])
-    if isinstance(values, list) and values:
-        return values[0]
     if isinstance(values, str):
+        return [values]
+    return []
+
+
+def get_cwes(result):
+    values = get_metadata(result).get("cwe", [])
+    if isinstance(values, list):
         return values
-    return None
+    if isinstance(values, str):
+        return [values]
+    return []
 
 
-def practical_severity(result):
-    """
-    Convert Semgrep metadata into a practical triage severity.
-    This is intentionally simple and deterministic.
-    """
-    metadata = get_metadata(result)
+def contains_command_injection_signal(result):
+    text = json.dumps({
+        "check_id": get_check_id(result),
+        "message": get_message(result),
+        "code": get_code_line(result),
+        "cwe": get_cwes(result),
+        "vulnerability_class": get_vulnerability_classes(result),
+    }).lower()
 
+    return (
+        "command injection" in text
+        or "cwe-78" in text
+        or "subprocess" in text
+    )
+
+
+def is_shell_true_only_signal(result):
     text = " ".join([
-        result.get("check_id", ""),
+        get_check_id(result),
         get_message(result),
         get_code_line(result),
-        str(metadata.get("impact", "")),
-        str(metadata.get("likelihood", "")),
-        str(metadata.get("confidence", "")),
-        " ".join(metadata.get("cwe", []) if isinstance(metadata.get("cwe", []), list) else []),
-        " ".join(metadata.get("vulnerability_class", []) if isinstance(metadata.get("vulnerability_class", []), list) else []),
     ]).lower()
 
-    impact = str(metadata.get("impact", "")).lower()
-    likelihood = str(metadata.get("likelihood", "")).lower()
-    semgrep_sev = str(result.get("severity", "")).upper()
+    return "shell-true" in text or "shell=true" in text
 
-    if "command injection" in text or "cwe-78" in text:
-        if "user" in text or "request.args" in text or "shell=true" in text:
-            return "High"
 
-    if impact == "high" and likelihood in {"high", "medium"}:
+def has_user_controlled_source(result):
+    """
+    Detect whether Semgrep reported actual user-controlled flow.
+    We intentionally avoid treating every shell=True finding as exploitable.
+    """
+    extra = get_extra(result)
+    trace_text = json.dumps(extra.get("dataflow_trace", {})).lower()
+
+    text = " ".join([
+        get_check_id(result),
+        get_message(result),
+        get_code_line(result),
+        trace_text,
+    ]).lower()
+
+    user_source_markers = [
+        "user controlled",
+        "user-controlled",
+        "user input",
+        "request.args",
+        "request.form",
+        "request.json",
+        "request.get_json",
+        "flask",
+        "sys.argv",
+        "input(",
+        "taint_source",
+    ]
+
+    return any(marker in text for marker in user_source_markers)
+
+
+def cluster_name_for_items(items):
+    any_user_controlled = any(has_user_controlled_source(r) for r in items)
+    any_command_injection = any(contains_command_injection_signal(r) for r in items)
+    any_shell_true = any(is_shell_true_only_signal(r) for r in items)
+
+    if any_user_controlled and any_command_injection:
+        return "Command Injection"
+
+    if any_shell_true and not any_user_controlled:
+        return "Shell=True Subprocess Hardening"
+
+    for r in items:
+        vuln_classes = get_vulnerability_classes(r)
+        if vuln_classes:
+            return vuln_classes[0]
+
+    for r in items:
+        cwes = get_cwes(r)
+        if cwes:
+            return cwes[0]
+
+    return "Security Finding"
+
+
+def practical_severity_for_items(items):
+    any_user_controlled = any(has_user_controlled_source(r) for r in items)
+    any_command_injection = any(contains_command_injection_signal(r) for r in items)
+    any_shell_true = any(is_shell_true_only_signal(r) for r in items)
+
+    if any_user_controlled and any_command_injection:
         return "High"
 
-    if semgrep_sev == "ERROR":
+    if any_shell_true and not any_user_controlled:
+        return "Low"
+
+    semgrep_severities = {str(r.get("severity", "")).upper() for r in items}
+
+    if "ERROR" in semgrep_severities:
         return "Medium"
 
-    if semgrep_sev == "WARNING":
+    if "WARNING" in semgrep_severities:
         return "Medium"
 
     return "Low"
 
 
-def cluster_name(result):
-    vuln_class = get_vulnerability_class(result)
-    if vuln_class:
-        return vuln_class
+def false_positive_decision_for_items(items):
+    any_user_controlled = any(has_user_controlled_source(r) for r in items)
+    any_command_injection = any(contains_command_injection_signal(r) for r in items)
+    any_shell_true = any(is_shell_true_only_signal(r) for r in items)
 
-    cwe = get_cwe(result)
-    if cwe:
-        if "CWE-78" in cwe:
-            return "Command Injection"
-        return cwe
+    if any_user_controlled and any_command_injection:
+        return (
+            "No",
+            "Semgrep reports user-controlled data reaching subprocess execution on the affected line."
+        )
 
-    check_id = result.get("check_id", "")
-    if "subprocess" in check_id:
-        return "Command Injection"
+    if any_shell_true and not any_user_controlled:
+        return (
+            "Yes",
+            "The finding is a shell=True hardening issue, but the available evidence does not show user-controlled input reaching the command."
+        )
 
-    return "Security Finding"
+    return (
+        "Unclear",
+        "The static finding does not provide enough context to fully confirm exploitability."
+    )
 
 
 def cluster_key(result):
     """
-    Group findings pointing to the same underlying issue.
-    For this prototype, same file + same line + same vulnerability class/CWE
-    is treated as the same vulnerability cluster.
+    Group findings by affected location first.
+    This keeps duplicate Semgrep rules on the same vulnerable line together.
     """
     path = result.get("path", "unknown")
     line = get_line(result)
-    vuln = first_nonempty([
-        get_vulnerability_class(result),
-        get_cwe(result),
-        cluster_name(result),
-    ], "unknown")
-
-    return f"{path}:{line}:{vuln}"
+    return f"{path}:{line}"
 
 
 def simplify_finding(result):
     metadata = get_metadata(result)
 
     return {
-        "check_id": result.get("check_id"),
+        "check_id": get_check_id(result),
         "path": result.get("path"),
         "line": get_line(result),
         "severity": result.get("severity"),
@@ -164,6 +226,8 @@ def simplify_finding(result):
         "confidence": metadata.get("confidence"),
         "impact": metadata.get("impact"),
         "likelihood": metadata.get("likelihood"),
+        "has_user_controlled_source": has_user_controlled_source(result),
+        "is_shell_true_signal": is_shell_true_only_signal(result),
     }
 
 
@@ -176,23 +240,22 @@ def build_clusters(results):
     clusters = []
 
     for _, items in grouped.items():
-        severities = [practical_severity(r) for r in items]
-        highest_severity = max(severities, key=lambda s: SEVERITY_RANK[s])
-
-        check_ids = sorted({r.get("check_id") for r in items if r.get("check_id")})
+        check_ids = sorted({get_check_id(r) for r in items if get_check_id(r)})
         files = sorted({
             f"{r.get('path')}:{get_line(r)}"
             for r in items
             if r.get("path") and get_line(r)
         })
 
-        name = cluster_name(items[0])
+        likely_fp, fp_reason = false_positive_decision_for_items(items)
 
         clusters.append({
-            "severity": highest_severity,
-            "cluster": name,
+            "severity": practical_severity_for_items(items),
+            "cluster": cluster_name_for_items(items),
             "check_ids": check_ids,
             "files": files,
+            "likely_false_positive": likely_fp,
+            "false_positive_reason": fp_reason,
             "findings": [simplify_finding(r) for r in items],
         })
 
@@ -201,9 +264,7 @@ def build_clusters(results):
 
 
 def fallback_enrichment(cluster):
-    name = cluster["cluster"].lower()
-
-    if "command injection" in name:
+    if cluster["cluster"] == "Command Injection":
         return {
             "impact": (
                 "User-controlled input reaches a subprocess call, which can allow an attacker to execute arbitrary operating-system commands. "
@@ -213,9 +274,17 @@ def fallback_enrichment(cluster):
                 "Avoid shell=True and pass arguments as a list, for example subprocess.check_output(['ping', '-c', '1', host], shell=False). "
                 "Validate the host value with an allowlist or strict IP/hostname parser before passing it to subprocess."
             ),
-            "likely_false_positive": "No",
-            "false_positive_reason": (
-                "Multiple Semgrep rules point to the same line where request input flows into subprocess execution."
+        }
+
+    if cluster["cluster"] == "Shell=True Subprocess Hardening":
+        return {
+            "impact": (
+                "The subprocess call uses shell=True, which increases risk because the command is interpreted by a shell. "
+                "In this case, no user-controlled input is shown reaching the command, so the issue is better treated as hardening rather than confirmed command injection."
+            ),
+            "minimal_safe_fix": (
+                "Avoid shell=True where possible and pass the command as an argument list. "
+                "Keep command selection restricted to an internal allowlist."
             ),
         }
 
@@ -227,37 +296,41 @@ def fallback_enrichment(cluster):
         "minimal_safe_fix": (
             "Apply the safest API or framework-specific mitigation and add a regression test for the vulnerable pattern."
         ),
-        "likely_false_positive": "Unclear",
-        "false_positive_reason": (
-            "The available static finding does not provide enough context to fully confirm exploitability."
-        ),
     }
 
 
 def call_ollama_for_enrichment(cluster):
     """
-    Ask the LLM only for explanatory text.
-    Do not allow it to decide check IDs, files, lines, or severity.
+    The LLM may only write explanation/fix text.
+    It is not allowed to decide severity, check IDs, files, or false-positive status.
     """
+    safe_cluster = {
+        "severity": cluster["severity"],
+        "cluster": cluster["cluster"],
+        "files": cluster["files"],
+        "likely_false_positive": cluster["likely_false_positive"],
+        "false_positive_reason": cluster["false_positive_reason"],
+        "findings": cluster["findings"],
+    }
+
     prompt = f"""
 You are a concise application security triage assistant.
 
 Return only valid JSON with this exact object shape:
 {{
   "impact": "Exactly two sentences explaining practical exploit impact.",
-  "minimal_safe_fix": "Specific minimal safe fix guidance.",
-  "likely_false_positive": "Yes|No|Unclear",
-  "false_positive_reason": "One sentence explaining the false-positive decision."
+  "minimal_safe_fix": "Specific minimal safe fix guidance."
 }}
 
 Do not include markdown.
 Do not include check IDs.
 Do not include files.
 Do not include severity.
+Do not decide false-positive status.
 Do not add extra keys.
 
 Cluster:
-{json.dumps(cluster, indent=2)}
+{json.dumps(safe_cluster, indent=2)}
 """.strip()
 
     payload = {
@@ -281,27 +354,15 @@ Cluster:
         text = response.json().get("response", "")
         parsed = json.loads(text)
 
-        required = {
-            "impact",
-            "minimal_safe_fix",
-            "likely_false_positive",
-            "false_positive_reason",
-        }
-
         if not isinstance(parsed, dict):
             raise ValueError("LLM did not return a JSON object")
 
-        if not required.issubset(parsed.keys()):
+        if "impact" not in parsed or "minimal_safe_fix" not in parsed:
             raise ValueError("LLM response missing required keys")
-
-        if parsed["likely_false_positive"] not in {"Yes", "No", "Unclear"}:
-            parsed["likely_false_positive"] = "Unclear"
 
         return {
             "impact": str(parsed.get("impact", "")).strip(),
             "minimal_safe_fix": str(parsed.get("minimal_safe_fix", "")).strip(),
-            "likely_false_positive": parsed["likely_false_positive"],
-            "false_positive_reason": str(parsed.get("false_positive_reason", "")).strip(),
         }
 
     except Exception as e:
@@ -310,7 +371,7 @@ Cluster:
 
 
 def validate_output(raw_results, final_clusters):
-    expected_ids = {r.get("check_id") for r in raw_results if r.get("check_id")}
+    expected_ids = {get_check_id(r) for r in raw_results if get_check_id(r)}
     actual_ids = set()
 
     for cluster in final_clusters:
@@ -348,7 +409,13 @@ def process_semgrep_file(fpath):
     final_clusters = []
 
     for cluster in clusters:
-        enrichment = call_ollama_for_enrichment(cluster)
+        if (
+            cluster.get("likely_false_positive") == "Yes"
+            or cluster.get("cluster") == "Shell=True Subprocess Hardening"
+        ):
+            enrichment = fallback_enrichment(cluster)
+        else:
+            enrichment = call_ollama_for_enrichment(cluster)
 
         final_clusters.append({
             "severity": cluster["severity"],
@@ -357,8 +424,8 @@ def process_semgrep_file(fpath):
             "files": cluster["files"],
             "impact": enrichment["impact"],
             "minimal_safe_fix": enrichment["minimal_safe_fix"],
-            "likely_false_positive": enrichment["likely_false_positive"],
-            "false_positive_reason": enrichment["false_positive_reason"],
+            "likely_false_positive": cluster["likely_false_positive"],
+            "false_positive_reason": cluster["false_positive_reason"],
         })
 
     if not validate_output(raw_results, final_clusters):
