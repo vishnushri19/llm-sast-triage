@@ -6,7 +6,7 @@ import subprocess
 import sys
 
 CONFIGS = ["p/security-audit", "p/owasp-top-ten", "p/secrets"]
-TARGETS = ["examples/myapp"]
+TARGETS = ["examples/myapp", "examples/safeapp"]
 
 OUT_DIR = pathlib.Path("data/findings")
 OUT_DIR.mkdir(parents=True, exist_ok=True)
