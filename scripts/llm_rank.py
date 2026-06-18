@@ -73,6 +73,23 @@ def get_cwes(result):
     return []
 
 
+def contains_sql_injection_signal(result):
+    text = json.dumps({
+        "check_id": get_check_id(result),
+        "message": get_message(result),
+        "code": get_code_line(result),
+        "cwe": get_cwes(result),
+        "vulnerability_class": get_vulnerability_classes(result),
+    }).lower()
+
+    return (
+        "sql injection" in text
+        or "tainted-sql-string" in text
+        or "manually construct a sql string" in text
+        or ("cursor.execute" in text and "select" in text)
+    )
+
+
 def contains_code_injection_signal(result):
     text = json.dumps({
         "check_id": get_check_id(result),
@@ -154,6 +171,12 @@ def cluster_name_for_items(items):
     any_command_injection = any(contains_command_injection_signal(r) for r in items)
     any_shell_true = any(is_shell_true_only_signal(r) for r in items)
 
+    if any(has_user_controlled_source(r) and contains_sql_injection_signal(r) for r in items):
+        return "SQL Injection"
+
+    if any(contains_sql_injection_signal(r) for r in items):
+        return "SQL Query Hardening"
+
     if any(has_user_controlled_source(r) and contains_code_injection_signal(r) for r in items):
         return "Code Injection"
 
@@ -184,6 +207,12 @@ def practical_severity_for_items(items):
     any_command_injection = any(contains_command_injection_signal(r) for r in items)
     any_shell_true = any(is_shell_true_only_signal(r) for r in items)
 
+    if any(has_user_controlled_source(r) and contains_sql_injection_signal(r) for r in items):
+        return "High"
+
+    if any(contains_sql_injection_signal(r) for r in items):
+        return "Low"
+
     if any(has_user_controlled_source(r) and contains_code_injection_signal(r) for r in items):
         return "High"
 
@@ -211,6 +240,18 @@ def false_positive_decision_for_items(items):
     any_user_controlled = any(has_user_controlled_source(r) for r in items)
     any_command_injection = any(contains_command_injection_signal(r) for r in items)
     any_shell_true = any(is_shell_true_only_signal(r) for r in items)
+
+    if any(has_user_controlled_source(r) and contains_sql_injection_signal(r) for r in items):
+        return (
+            "No",
+            "Semgrep reports user-controlled input reaching SQL query construction/execution."
+        )
+
+    if any(contains_sql_injection_signal(r) for r in items):
+        return (
+            "Yes",
+            "Semgrep reports SQL query construction, but no user-controlled input is shown reaching the query."
+        )
 
     if any(has_user_controlled_source(r) and contains_code_injection_signal(r) for r in items):
         return (

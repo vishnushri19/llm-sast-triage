@@ -1,0 +1,10 @@
+[
+  {
+    "check_id": "python.flask.security.injection.tainted-sql-string.tainted-sql-string",
+    "path": "examples/sqlapp/app.py",
+    "line": 11,
+    "tp": true,
+    "severity": "High",
+    "category": "SQL Injection"
+  }
+]
