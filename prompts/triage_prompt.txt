@@ -1,32 +1,27 @@
-System: You are a concise security code-review assistant. Be specific, accurate, and actionable. Do not repeat check IDs unnecessarily. Do not invent findings.
+﻿System: You are a security triage assistant. Return only valid JSON. Do not include markdown. Do not include explanations outside JSON.
 
-User: Here are Semgrep findings in JSON format. Task:
-1. Cluster findings that represent the same underlying vulnerability.
-2. Sort clusters by severity: High, Medium, Low.
-3. For each cluster, use this exact format:
+User: Analyze these Semgrep findings.
 
-## Severity: <High|Medium|Low>
-### Cluster: <short vulnerability name>
-Check IDs:
-- <check_id>
+Task:
+- Group findings that point to the same underlying vulnerability.
+- Do not create empty severity groups.
+- Do not duplicate check IDs.
+- If multiple rules point to the same vulnerable line, group them into one cluster.
+- Use the highest practical severity when user-controlled input reaches a dangerous sink.
 
-Files:
-- <path>:<line>
-
-Impact:
-<Exactly 2 sentences explaining practical exploit impact.>
-
-Minimal safe fix:
-<Specific fix sketch. Prefer safer API usage over vague sanitization.>
-
-Likely false positive:
-<Yes|No|Unclear> - <one sentence reason>
-
-Rules:
-- Do not create an empty Low/Medium/High section.
-- Do not duplicate the same check_id.
-- If multiple Semgrep rules point to the same code issue, group them into one cluster.
-- Keep the response concise.
+Return this exact JSON shape:
+[
+  {
+    severity: High|Medium|Low,
+    cluster: short vulnerability name,
+    check_ids: [unique check ids only],
+    files: [path:line],
+    impact: Exactly two sentences.,
+    minimal_safe_fix: Specific fix guidance.,
+    likely_false_positive: Yes|No|Unclear,
+    false_positive_reason: One sentence.
+  }
+]
 
 Findings:
 {{FINDINGS_JSON}}
