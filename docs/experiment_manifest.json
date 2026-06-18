@@ -1,0 +1,28 @@
+{
+  "project": "llm-sast-triage",
+  "scanner": "Semgrep",
+  "scanner_version": "1.82.0 via Docker",
+  "llm_runtime": "Ollama",
+  "llm_model": "llama3.2",
+  "language": "Python",
+  "targets": [
+    "myapp",
+    "evalapp",
+    "sqlapp",
+    "safeapp",
+    "safeevalapp"
+  ],
+  "metrics": {
+    "targets_evaluated": 5,
+    "total_raw_findings": 9,
+    "total_llm_clusters": 5,
+    "overall_compression_ratio": "1.80x",
+    "overall_precision": 0.78,
+    "overall_recall": 1.0,
+    "overall_severity_accuracy": 1.0,
+    "overall_false_positive_triage_accuracy": 1.0,
+    "missing_check_ids": 0,
+    "extra_check_ids": 0
+  },
+  "safety_principle": "SAST remains the source of truth; deterministic validation preserves scanner check IDs before accepting LLM-enriched triage output."
+}
