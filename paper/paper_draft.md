@@ -244,3 +244,15 @@ Labels are manually created for this initial dataset. False-positive labels and 
 - Report per-class results.
 - Compare against raw Semgrep severity and a baseline manual triage workflow.
 - Test different local LLM models for stability and output consistency.
+
+# Conclusion and Future Work
+
+This project presents an initial scanner-first approach for LLM-assisted SAST triage. The prototype keeps Semgrep as the source of truth, applies deterministic clustering and rule-based triage before LLM enrichment, and validates that scanner check IDs are preserved in the final output. This design addresses a central risk in LLM-assisted security workflows: the possibility that generated explanations may omit, invent, or alter evidence.
+
+The initial evaluation shows that the prototype can reduce related SAST findings into smaller triage clusters while preserving scanner evidence. Across five Python targets, the system reduced nine raw Semgrep findings to five triage clusters, preserved all scanner check IDs, and correctly distinguished confirmed vulnerability paths from hardening or likely false-positive cases in the labeled dataset. These results are early and limited, but they demonstrate that controlled LLM assistance can improve readability without giving the LLM authority over the evidence trail.
+
+The main lesson is that LLMs are most useful in this workflow when they are constrained. The LLM should not decide which findings exist, which check IDs matter, or whether scanner evidence should be removed. Instead, deterministic logic should preserve evidence and make high-confidence triage decisions, while the LLM improves communication through impact summaries and remediation guidance.
+
+Future work should expand the evaluation in several directions. First, the dataset should include more applications, larger codebases, and additional vulnerability classes such as path traversal, SSRF, insecure deserialization, insecure cryptography, and hardcoded secrets. Second, the project should compare multiple local LLMs to measure stability of impact and remediation text. Third, the evaluation should report per-class metrics so that command injection, SQL injection, code injection, and hardening-only cases can be analyzed separately. Fourth, the prototype should be tested against real open-source projects and benchmark datasets such as SAST triage benchmarks.
+
+A longer-term direction is to integrate this workflow into developer review systems, where SAST findings are grouped into evidence-preserving clusters before being shown in pull requests or security dashboards. In that setting, the core safety principle should remain unchanged: scanner evidence is authoritative, deterministic validation is mandatory, and the LLM is used only to make validated findings easier to understand and fix.
