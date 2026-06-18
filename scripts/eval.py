@@ -1,192 +1,138 @@
 #!/usr/bin/env python3
 import json
-import pathlib
+from pathlib import Path
 import sys
 
-LABELS_DIR = pathlib.Path("labels")
-FINDINGS_DIR = pathlib.Path("data/findings")
-RANKINGS_DIR = pathlib.Path("data/rankings")
+LABELS = Path("labels")
+FINDINGS = Path("data/findings")
+RANKINGS = Path("data/rankings")
+SEV = {"low":1,"medium":2,"high":3,"info":1,"warning":2,"error":3}
 
+def load(p):
+    return json.loads(p.read_text(encoding="utf-8"))
 
-def load_json(path):
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
+def sev(v):
+    return SEV.get(str(v).lower(), 0)
 
-
-def finding_key(check_id, path, line):
+def k(check_id, path, line):
     return f"{check_id}|{path}|{line}"
 
+def rk(r):
+    return k(r.get("check_id"), r.get("path"), r.get("start",{}).get("line"))
 
-def semgrep_key(result):
-    return finding_key(
-        result.get("check_id"),
-        result.get("path"),
-        result.get("start", {}).get("line"),
-    )
+def lk(l):
+    return k(l.get("check_id"), l.get("path"), l.get("line"))
 
+def clusters(x):
+    return [x] if isinstance(x, dict) else (x if isinstance(x, list) else [])
 
-def label_key(label):
-    return finding_key(
-        label.get("check_id"),
-        label.get("path"),
-        label.get("line"),
-    )
+def match(c, l):
+    return l.get("check_id") in set(c.get("check_ids", [])) and f"{l.get('path')}:{l.get('line')}" in set(c.get("files", []))
 
+def pct(a,b):
+    return a / b if b else 0.0
 
-def severity_score(value):
-    mapping = {
-        "low": 1,
-        "medium": 2,
-        "high": 3,
-        "error": 3,
-        "warning": 2,
-        "info": 1,
-    }
-    return mapping.get(str(value).lower(), 0)
+def eval_target(name):
+    lf = LABELS / f"{name}.json"
+    sf = FINDINGS / f"{name}-semgrep.json"
+    of = RANKINGS / f"{name}-semgrep-llm.json"
+    missing_files = [str(p) for p in (lf, sf, of) if not p.exists()]
+    if missing_files:
+        print(f"\nEvaluation target: {name}")
+        print("Missing files:")
+        for p in missing_files:
+            print(f"- {p}")
+        return None
 
+    labels = load(lf)
+    results = load(sf).get("results", [])
+    outs = clusters(load(of))
 
-def evaluate_target(name):
-    labels_file = LABELS_DIR / f"{name}.json"
-    findings_file = FINDINGS_DIR / f"{name}-semgrep.json"
-    llm_file = RANKINGS_DIR / f"{name}-semgrep-llm.json"
+    result_keys = {rk(r) for r in results}
+    tp_keys = {lk(l) for l in labels if l.get("tp") is True}
+    fp_keys = {lk(l) for l in labels if l.get("tp") is False}
+    found_tp = result_keys & tp_keys
+    found_fp = result_keys & fp_keys
 
-    if not labels_file.exists():
-        print(f"Missing labels file: {labels_file}")
-        return False
+    semgrep_ids = {r.get("check_id") for r in results if r.get("check_id")}
+    llm_ids = {cid for c in outs for cid in c.get("check_ids", [])}
+    missing_ids = semgrep_ids - llm_ids
+    extra_ids = llm_ids - semgrep_ids
 
-    if not findings_file.exists():
-        print(f"Missing Semgrep findings file: {findings_file}")
-        return False
-
-    if not llm_file.exists():
-        print(f"Missing LLM output file: {llm_file}")
-        return False
-
-    labels = load_json(labels_file)
-    semgrep = load_json(findings_file)
-    llm_clusters = load_json(llm_file)
-
-    if isinstance(llm_clusters, dict):
-        llm_clusters = [llm_clusters]
-
-    semgrep_results = semgrep.get("results", [])
-
-    label_by_key = {label_key(l): l for l in labels}
-    semgrep_keys = {semgrep_key(r) for r in semgrep_results}
-
-    labeled_tp_keys = {
-        label_key(l)
-        for l in labels
-        if l.get("tp") is True
-    }
-
-    labeled_fp_keys = {
-        label_key(l)
-        for l in labels
-        if l.get("tp") is False
-    }
-
-    found_labeled_tp = semgrep_keys & labeled_tp_keys
-    found_labeled_fp = semgrep_keys & labeled_fp_keys
-
-    llm_check_ids = set()
-    for cluster in llm_clusters:
-        for cid in cluster.get("check_ids", []):
-            llm_check_ids.add(cid)
-
-    semgrep_check_ids = {
-        r.get("check_id")
-        for r in semgrep_results
-        if r.get("check_id")
-    }
-
-    missing_from_llm = semgrep_check_ids - llm_check_ids
-    extra_from_llm = llm_check_ids - semgrep_check_ids
-
-    total_findings = len(semgrep_results)
-    total_clusters = len(llm_clusters)
-
-    tp_count = len(found_labeled_tp)
-    fp_count = len(found_labeled_fp)
-
-    precision = tp_count / total_findings if total_findings else 0
-    recall = tp_count / len(labeled_tp_keys) if labeled_tp_keys else 0
-
-    severity_matches = 0
-    severity_checked = 0
-
-    for cluster in llm_clusters:
-        cluster_severity = cluster.get("severity")
-        cluster_ids = set(cluster.get("check_ids", []))
-
-        matching_labels = [
-            l for l in labels
-            if l.get("check_id") in cluster_ids
-        ]
-
-        if not matching_labels:
+    sev_ok = sev_total = fp_ok = fp_total = 0
+    for c in outs:
+        matched = [l for l in labels if match(c, l)]
+        if not matched:
             continue
+        sev_total += 1
+        if sev(c.get("severity")) == max(sev(l.get("severity")) for l in matched):
+            sev_ok += 1
+        for l in matched:
+            fp_total += 1
+            expected = "Yes" if l.get("tp") is False else "No"
+            actual = str(c.get("likely_false_positive", "")).strip()
+            if actual == expected:
+                fp_ok += 1
 
-        expected_score = max(severity_score(l.get("severity")) for l in matching_labels)
-        actual_score = severity_score(cluster_severity)
+    raw = len(results)
+    cls = len(outs)
+    row = {
+        "raw": raw,
+        "clusters": cls,
+        "tp": len(tp_keys),
+        "fp": len(fp_keys),
+        "found_tp": len(found_tp),
+        "found_fp": len(found_fp),
+        "sev_ok": sev_ok,
+        "sev_total": sev_total,
+        "fp_ok": fp_ok,
+        "fp_total": fp_total,
+        "missing": len(missing_ids),
+        "extra": len(extra_ids),
+    }
 
-        severity_checked += 1
-
-        if expected_score == actual_score:
-            severity_matches += 1
-
-    severity_accuracy = (
-        severity_matches / severity_checked
-        if severity_checked
-        else 0
-    )
-
-    print("")
-    print(f"Evaluation target: {name}")
+    print(f"\nEvaluation target: {name}")
     print("-" * 50)
-    print(f"Raw Semgrep findings:        {total_findings}")
-    print(f"LLM triage clusters:         {total_clusters}")
-    print(f"Labeled true positives:      {len(labeled_tp_keys)}")
-    print(f"Detected labeled TPs:        {tp_count}")
-    print(f"Detected labeled FPs:        {fp_count}")
-    print(f"Finding-level precision:     {precision:.2f}")
-    print(f"Finding-level recall:        {recall:.2f}")
-    print(f"Severity accuracy:           {severity_accuracy:.2f}")
-    print(f"LLM missing check IDs:       {len(missing_from_llm)}")
-    print(f"LLM extra check IDs:         {len(extra_from_llm)}")
-
-    if missing_from_llm:
-        print("")
-        print("Missing from LLM:")
-        for cid in sorted(missing_from_llm):
-            print(f"- {cid}")
-
-    if extra_from_llm:
-        print("")
-        print("Extra from LLM:")
-        for cid in sorted(extra_from_llm):
-            print(f"- {cid}")
-
-    return not missing_from_llm and not extra_from_llm
-
+    print(f"Raw Semgrep findings:             {raw}")
+    print(f"LLM triage clusters:              {cls}")
+    print(f"Cluster compression ratio:        {pct(raw, cls):.2f}x")
+    print(f"Labeled true positives:           {len(tp_keys)}")
+    print(f"Labeled false positives:          {len(fp_keys)}")
+    print(f"Detected labeled TPs:             {len(found_tp)}")
+    print(f"Detected labeled FPs:             {len(found_fp)}")
+    print(f"Finding-level precision:          {pct(len(found_tp), raw):.2f}")
+    print(f"Finding-level recall:             {pct(len(found_tp), len(tp_keys)):.2f}")
+    print(f"Severity accuracy:                {pct(sev_ok, sev_total):.2f}")
+    print(f"False-positive triage accuracy:   {pct(fp_ok, fp_total):.2f}")
+    print(f"LLM missing check IDs:            {len(missing_ids)}")
+    print(f"LLM extra check IDs:              {len(extra_ids)}")
+    return row
 
 def main():
-    label_files = sorted(LABELS_DIR.glob("*.json"))
-
-    if not label_files:
-        print("No label files found in labels/.")
+    rows = []
+    for lf in sorted(LABELS.glob("*.json")):
+        r = eval_target(lf.stem)
+        if r:
+            rows.append(r)
+    if not rows:
+        print("No completed targets found.")
         sys.exit(1)
 
-    ok = True
-
-    for label_file in label_files:
-        target_name = label_file.stem
-        result = evaluate_target(target_name)
-        ok = ok and result
-
-    if not ok:
+    total = {k: sum(r[k] for r in rows) for k in rows[0]}
+    print("\nOverall summary")
+    print("=" * 50)
+    print(f"Targets evaluated:                {len(rows)}")
+    print(f"Total raw findings:               {total['raw']}")
+    print(f"Total LLM clusters:               {total['clusters']}")
+    print(f"Overall compression ratio:        {pct(total['raw'], total['clusters']):.2f}x")
+    print(f"Overall precision:                {pct(total['found_tp'], total['raw']):.2f}")
+    print(f"Overall recall:                   {pct(total['found_tp'], total['tp']):.2f}")
+    print(f"Overall severity accuracy:        {pct(total['sev_ok'], total['sev_total']):.2f}")
+    print(f"Overall FP triage accuracy:       {pct(total['fp_ok'], total['fp_total']):.2f}")
+    print(f"Total missing check IDs:          {total['missing']}")
+    print(f"Total extra check IDs:            {total['extra']}")
+    if total["missing"] or total["extra"]:
         sys.exit(2)
-
 
 if __name__ == "__main__":
     main()
