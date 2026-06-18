@@ -336,3 +336,21 @@ The main lesson is that LLMs are most useful in this workflow when they are cons
 Future work should expand the evaluation in several directions. First, the dataset should include more applications, larger codebases, and additional vulnerability classes such as path traversal, SSRF, insecure deserialization, insecure cryptography, and hardcoded secrets. Second, the project should compare multiple local LLMs to measure stability of impact and remediation text. Third, the evaluation should report per-class metrics so that command injection, SQL injection, code injection, and hardening-only cases can be analyzed separately. Fourth, the prototype should be tested against real open-source projects and benchmark datasets such as SAST triage benchmarks.
 
 A longer-term direction is to integrate this workflow into developer review systems, where SAST findings are grouped into evidence-preserving clusters before being shown in pull requests or security dashboards. In that setting, the core safety principle should remain unchanged: scanner evidence is authoritative, deterministic validation is mandatory, and the LLM is used only to make validated findings easier to understand and fix.
+
+# References
+
+[1] Z. Li et al., "IRIS: LLM-Assisted Static Analysis for Detecting Security Vulnerabilities," arXiv:2405.17238, 2024. https://arxiv.org/abs/2405.17238
+
+[2] M. Iranmanesh et al., "ZeroFalse: Improving Precision in Static Analysis with LLMs," arXiv:2510.02534, 2025. https://arxiv.org/abs/2510.02534
+
+[3] M. R. Ameen, M. T. U. Alam, and A. Islam, "QASecClaw: A Multi-Agent LLM Approach for False Positive Reduction in Static Application Security Testing," arXiv:2605.01885, 2026. https://arxiv.org/abs/2605.01885
+
+[4] J. Feiglin and G. Dar, "SastBench: A Benchmark for Testing Agentic SAST Triage," arXiv:2601.02941, 2026. https://arxiv.org/abs/2601.02941
+
+[5] Y. Xiong et al., "Sifting the Noise: A Comparative Study of LLM Agents in Vulnerability False Positive Filtering," arXiv:2601.22952, 2026. https://arxiv.org/abs/2601.22952
+
+[6] OWASP Foundation, "Static Code Analysis," OWASP Web Security Testing Guide / OWASP documentation.
+
+[7] Semgrep, "Semgrep Documentation," Semgrep official documentation.
+
+[8] Ollama, "Ollama Documentation," Ollama official documentation.
