@@ -1,0 +1,26 @@
+[
+  {
+    "check_id": "python.django.security.injection.code.user-eval.user-eval",
+    "path": "examples/evalapp/app.py",
+    "line": 7,
+    "tp": true,
+    "severity": "High",
+    "category": "Code Injection"
+  },
+  {
+    "check_id": "python.flask.security.injection.user-eval.eval-injection",
+    "path": "examples/evalapp/app.py",
+    "line": 8,
+    "tp": true,
+    "severity": "High",
+    "category": "Code Injection"
+  },
+  {
+    "check_id": "python.lang.security.audit.eval-detected.eval-detected",
+    "path": "examples/evalapp/app.py",
+    "line": 8,
+    "tp": true,
+    "severity": "High",
+    "category": "Code Injection"
+  }
+]

@@ -73,6 +73,24 @@ def get_cwes(result):
     return []
 
 
+def contains_code_injection_signal(result):
+    text = json.dumps({
+        "check_id": get_check_id(result),
+        "message": get_message(result),
+        "code": get_code_line(result),
+        "cwe": get_cwes(result),
+        "vulnerability_class": get_vulnerability_classes(result),
+    }).lower()
+
+    return (
+        "code injection" in text
+        or "eval" in text
+        or "user-eval" in text
+        or "eval-injection" in text
+        or "eval-detected" in text
+    )
+
+
 def contains_command_injection_signal(result):
     text = json.dumps({
         "check_id": get_check_id(result),
@@ -136,6 +154,9 @@ def cluster_name_for_items(items):
     any_command_injection = any(contains_command_injection_signal(r) for r in items)
     any_shell_true = any(is_shell_true_only_signal(r) for r in items)
 
+    if any(has_user_controlled_source(r) and contains_code_injection_signal(r) for r in items):
+        return "Code Injection"
+
     if any_user_controlled and any_command_injection:
         return "Command Injection"
 
@@ -160,6 +181,9 @@ def practical_severity_for_items(items):
     any_command_injection = any(contains_command_injection_signal(r) for r in items)
     any_shell_true = any(is_shell_true_only_signal(r) for r in items)
 
+    if any(has_user_controlled_source(r) and contains_code_injection_signal(r) for r in items):
+        return "High"
+
     if any_user_controlled and any_command_injection:
         return "High"
 
@@ -181,6 +205,12 @@ def false_positive_decision_for_items(items):
     any_user_controlled = any(has_user_controlled_source(r) for r in items)
     any_command_injection = any(contains_command_injection_signal(r) for r in items)
     any_shell_true = any(is_shell_true_only_signal(r) for r in items)
+
+    if any(has_user_controlled_source(r) and contains_code_injection_signal(r) for r in items):
+        return (
+            "No",
+            "Semgrep reports user-controlled input reaching eval-style code execution."
+        )
 
     if any_user_controlled and any_command_injection:
         return (
@@ -207,6 +237,8 @@ def cluster_key(result):
     """
     path = result.get("path", "unknown")
     line = get_line(result)
+    if contains_code_injection_signal(result):
+        return f"{path}:code-injection"
     return f"{path}:{line}"
 
 
