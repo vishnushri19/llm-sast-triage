@@ -13,7 +13,6 @@ PDF = OUT / 'paper_draft.pdf'
 doc = Document()
 doc.styles['Normal'].font.name = 'Calibri'
 doc.styles['Normal'].font.size = Pt(10.5)
-doc.add_heading('Controlled LLM-Assisted SAST Triage', 0)
 
 lines = SRC.read_text(encoding='utf-8', errors='replace').splitlines()
 in_code = False

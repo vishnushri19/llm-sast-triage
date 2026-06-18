@@ -1,3 +1,13 @@
+# Controlled LLM-Assisted SAST Triage: Evidence-Preserving Clustering and Local LLM Enrichment for Security Findings
+
+**Author:** Vishnu Gatla  
+**Title:** Senior Professional Services Consultant  
+**Affiliation:** F5 Inc.  
+**Location:** Dallas, Texas, USA  
+**Draft:** Phase 2 Technical Report  
+
+---
+
 # Abstract
 
 Static application security testing (SAST) tools can identify vulnerable code patterns, but security teams often struggle with duplicate findings, severity noise, and false-positive or hardening-only results. This project presents a hybrid SAST triage workflow that keeps the scanner as the source of truth while using deterministic clustering and a local large language model (LLM) to improve finding readability and remediation guidance.
