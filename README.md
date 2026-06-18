@@ -167,7 +167,7 @@ Future work includes adding more targets, testing real-world repositories, compa
 
 ## Author
 
-Vishnu Gatla  
-Senior Professional Services Consultant  
-F5 Inc.  
+Vishnu Gatla
+Senior Professional Services Consultant
+F5 Inc.
 Dallas, Texas, USA
