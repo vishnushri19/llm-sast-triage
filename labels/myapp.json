@@ -1,0 +1,26 @@
+[
+  {
+    "check_id": "python.flask.security.injection.subprocess-injection.subprocess-injection",
+    "path": "examples/myapp/app.py",
+    "line": 10,
+    "tp": true,
+    "severity": "High",
+    "cluster": "Command Injection"
+  },
+  {
+    "check_id": "python.lang.security.audit.subprocess-shell-true.subprocess-shell-true",
+    "path": "examples/myapp/app.py",
+    "line": 10,
+    "tp": true,
+    "severity": "High",
+    "cluster": "Command Injection"
+  },
+  {
+    "check_id": "python.lang.security.dangerous-subprocess-use.dangerous-subprocess-use",
+    "path": "examples/myapp/app.py",
+    "line": 10,
+    "tp": true,
+    "severity": "High",
+    "cluster": "Command Injection"
+  }
+]
