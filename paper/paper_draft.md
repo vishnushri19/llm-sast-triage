@@ -164,6 +164,39 @@ The current metrics are designed to answer three questions:
 
 The current results are early and should not be interpreted as broad generalization. They validate the architecture and measurement approach before scaling to larger datasets.
 
+## Architecture Figure
+
+Figure 1 shows the scanner-first workflow used in this project.
+
+```text
++-------------------+    +---------------------------+    +------------------------+
+| Python targets    | -> | Semgrep scan              | -> | Raw JSON findings      |
+| (example apps)    |    | (security-audit, owasp,   |    | data/findings/*.json   |
+|                   |    |  secrets rules)           |    |                        |
++-------------------+    +---------------------------+    +------------------------+
+                                                                   |
+                                                                   v
++-------------------+    +---------------------------+    +------------------------+
+| Manual labels     | -> | Evaluation                | <- | Deterministic triage   |
+| labels/*.json     |    | precision, recall,        |    | clustering, severity,  |
+|                   |    | severity, FP accuracy     |    | evidence validation    |
++-------------------+    +---------------------------+    +------------------------+
+                                                                   |
+                                                                   v
+                                                        +------------------------+
+                                                        | Local Ollama           |
+                                                        | impact + fix text      |
+                                                        +------------------------+
+                                                                   |
+                                                                   v
+                                                        +------------------------+
+                                                        | Final triage output    |
+                                                        | data/rankings/*.json   |
+                                                        +------------------------+
+```
+
+The key design principle is that Semgrep remains the source of truth. Deterministic logic preserves scanner evidence and performs clustering before the local LLM is used only for explanation and remediation enrichment.
+
 # Methodology
 
 The methodology evaluates whether a scanner-first LLM-assisted workflow can make SAST findings easier to triage while preserving scanner evidence. The experiment is designed around a conservative principle: Semgrep produces the security evidence, deterministic logic organizes and validates that evidence, and the local LLM is used only to enrich the final cluster with impact and remediation text.
@@ -234,6 +267,21 @@ The prototype reduced nine raw Semgrep findings into five triage clusters while 
 The precision value is lower than 1.00 because the dataset intentionally includes false-positive or hardening-only findings. This is expected. The more important measurement for those cases is false-positive triage accuracy, which is currently 1.00 on the initial dataset.
 
 The current result should be treated as an early validation of the pipeline design, not as a general claim about all SAST findings or all application frameworks.
+
+## Evaluation Table
+
+Table 1 summarizes the initial five-target evaluation.
+
+| Target | Raw Findings | LLM Clusters | Compression | TP Labels | FP Labels | Precision | Recall | Severity Accuracy | FP Triage Accuracy |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| myapp | 3 | 1 | 3.00x | 3 | 0 | 1.00 | 1.00 | 1.00 | 1.00 |
+| evalapp | 3 | 1 | 3.00x | 3 | 0 | 1.00 | 1.00 | 1.00 | 1.00 |
+| sqlapp | 1 | 1 | 1.00x | 1 | 0 | 1.00 | 1.00 | 1.00 | 1.00 |
+| safeapp | 1 | 1 | 1.00x | 0 | 1 | 0.00 | 0.00 | 1.00 | 1.00 |
+| safeevalapp | 1 | 1 | 1.00x | 0 | 1 | 0.00 | 0.00 | 1.00 | 1.00 |
+| **Overall** | **9** | **5** | **1.80x** | **7** | **2** | **0.78** | **1.00** | **1.00** | **1.00** |
+
+The results show that the pipeline reduced nine raw findings into five clusters while preserving scanner evidence. The overall precision is lower than recall because the dataset intentionally includes hardening-only and likely false-positive cases, but severity accuracy and false-positive triage accuracy remained perfect in this initial evaluation.
 
 # Limitations and Threats to Validity
 
