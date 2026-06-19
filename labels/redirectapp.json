@@ -1,0 +1,10 @@
+[
+  {
+    "check_id": "python.flask.security.open-redirect.open-redirect",
+    "path": "examples/redirectapp/app.py",
+    "line": 7,
+    "tp": true,
+    "severity": "Medium",
+    "category": "Open Redirect"
+  }
+]

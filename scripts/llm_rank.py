@@ -159,6 +159,11 @@ def contains_pickle_deserialization_signal(result):
     text = signal_text(result)
     return "pickle.loads" in text or "avoid-pickle" in text or "pickle deserialization" in text
 
+
+def contains_open_redirect_signal(result):
+    text = signal_text(result)
+    return "open redirect" in text or "open-redirect" in text or "redirect(" in text
+
 def is_shell_true_only_signal(result):
     text = " ".join([
         get_check_id(result),
@@ -209,6 +214,12 @@ def cluster_name_for_items(items):
     any_user_controlled = any(has_user_controlled_source(r) for r in items)
     any_command_injection = any(contains_command_injection_signal(r) for r in items)
     any_shell_true = any(is_shell_true_only_signal(r) for r in items)
+
+    if any_user_controlled and any(contains_open_redirect_signal(r) for r in items):
+        return "Open Redirect"
+
+    if any(contains_open_redirect_signal(r) for r in items):
+        return "Open Redirect Hardening"
 
     if any_user_controlled and any(contains_path_traversal_signal(r) for r in items):
         return "Path Traversal"
@@ -272,6 +283,12 @@ def practical_severity_for_items(items):
     any_command_injection = any(contains_command_injection_signal(r) for r in items)
     any_shell_true = any(is_shell_true_only_signal(r) for r in items)
 
+    if any_user_controlled and any(contains_open_redirect_signal(r) for r in items):
+        return "Medium"
+
+    if any(contains_open_redirect_signal(r) for r in items):
+        return "Low"
+
     if any_user_controlled and any(contains_path_traversal_signal(r) for r in items):
         return "High"
 
@@ -332,6 +349,12 @@ def false_positive_decision_for_items(items):
     any_command_injection = any(contains_command_injection_signal(r) for r in items)
     any_shell_true = any(is_shell_true_only_signal(r) for r in items)
 
+    if any_user_controlled and any(contains_open_redirect_signal(r) for r in items):
+        return ("No", "Semgrep reports user-controlled input reaching a redirect target.")
+
+    if any(contains_open_redirect_signal(r) for r in items):
+        return ("Yes", "Semgrep reports a redirect pattern, but no user-controlled input is shown reaching the redirect target.")
+
     if any_user_controlled and any(contains_path_traversal_signal(r) for r in items):
         return ("No", "Semgrep reports user-controlled input reaching a file path used for file access.")
 
@@ -386,6 +409,9 @@ def cluster_key(result):
     """
     path = result.get("path", "unknown")
     line = get_line(result)
+
+    if contains_open_redirect_signal(result):
+        return f"{path}:open-redirect"
 
     if contains_path_traversal_signal(result):
         return f"{path}:path-traversal"
