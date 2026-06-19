@@ -124,6 +124,41 @@ def contains_command_injection_signal(result):
     )
 
 
+
+def signal_text(result):
+    return json.dumps({
+        "check_id": get_check_id(result),
+        "message": get_message(result),
+        "code": get_code_line(result),
+        "cwe": get_cwes(result),
+        "vulnerability_class": get_vulnerability_classes(result),
+    }).lower()
+
+
+def contains_path_traversal_signal(result):
+    text = signal_text(result)
+    return "path traversal" in text or "path-traversal" in text or "path_traversal" in text
+
+
+def contains_ssrf_signal(result):
+    text = signal_text(result)
+    return "ssrf" in text or "server-side request forgery" in text
+
+
+def contains_insecure_transport_signal(result):
+    text = signal_text(result)
+    return "insecure-transport" in text or "request-with-http" in text or "http://" in text
+
+
+def contains_yaml_deserialization_signal(result):
+    text = signal_text(result)
+    return "pyyaml" in text or "yaml.load" in text or "avoid-pyyaml-load" in text
+
+
+def contains_pickle_deserialization_signal(result):
+    text = signal_text(result)
+    return "pickle.loads" in text or "avoid-pickle" in text or "pickle deserialization" in text
+
 def is_shell_true_only_signal(result):
     text = " ".join([
         get_check_id(result),
@@ -157,6 +192,10 @@ def has_user_controlled_source(result):
         "request.form",
         "request.json",
         "request.get_json",
+        "request.data",
+        "request.values",
+        "request.files",
+        "request.cookies",
         "flask",
         "sys.argv",
         "input(",
@@ -170,6 +209,33 @@ def cluster_name_for_items(items):
     any_user_controlled = any(has_user_controlled_source(r) for r in items)
     any_command_injection = any(contains_command_injection_signal(r) for r in items)
     any_shell_true = any(is_shell_true_only_signal(r) for r in items)
+
+    if any_user_controlled and any(contains_path_traversal_signal(r) for r in items):
+        return "Path Traversal"
+
+    if any(contains_path_traversal_signal(r) for r in items):
+        return "Path Traversal Hardening"
+
+    if any_user_controlled and any(contains_ssrf_signal(r) for r in items):
+        return "SSRF"
+
+    if any(contains_ssrf_signal(r) for r in items):
+        return "SSRF Hardening"
+
+    if any(contains_insecure_transport_signal(r) for r in items):
+        return "Insecure Transport"
+
+    if any_user_controlled and any(contains_yaml_deserialization_signal(r) for r in items):
+        return "Unsafe YAML Deserialization"
+
+    if any(contains_yaml_deserialization_signal(r) for r in items):
+        return "YAML Deserialization Hardening"
+
+    if any_user_controlled and any(contains_pickle_deserialization_signal(r) for r in items):
+        return "Unsafe Pickle Deserialization"
+
+    if any(contains_pickle_deserialization_signal(r) for r in items):
+        return "Pickle Deserialization Hardening"
 
     if any(has_user_controlled_source(r) and contains_sql_injection_signal(r) for r in items):
         return "SQL Injection"
@@ -201,11 +267,37 @@ def cluster_name_for_items(items):
 
     return "Security Finding"
 
-
 def practical_severity_for_items(items):
     any_user_controlled = any(has_user_controlled_source(r) for r in items)
     any_command_injection = any(contains_command_injection_signal(r) for r in items)
     any_shell_true = any(is_shell_true_only_signal(r) for r in items)
+
+    if any_user_controlled and any(contains_path_traversal_signal(r) for r in items):
+        return "High"
+
+    if any(contains_path_traversal_signal(r) for r in items):
+        return "Low"
+
+    if any_user_controlled and any(contains_ssrf_signal(r) for r in items):
+        return "High"
+
+    if any(contains_ssrf_signal(r) for r in items):
+        return "Low"
+
+    if any(contains_insecure_transport_signal(r) for r in items):
+        return "Low"
+
+    if any_user_controlled and any(contains_yaml_deserialization_signal(r) for r in items):
+        return "High"
+
+    if any(contains_yaml_deserialization_signal(r) for r in items):
+        return "Low"
+
+    if any_user_controlled and any(contains_pickle_deserialization_signal(r) for r in items):
+        return "High"
+
+    if any(contains_pickle_deserialization_signal(r) for r in items):
+        return "Low"
 
     if any(has_user_controlled_source(r) and contains_sql_injection_signal(r) for r in items):
         return "High"
@@ -235,65 +327,85 @@ def practical_severity_for_items(items):
 
     return "Low"
 
-
 def false_positive_decision_for_items(items):
     any_user_controlled = any(has_user_controlled_source(r) for r in items)
     any_command_injection = any(contains_command_injection_signal(r) for r in items)
     any_shell_true = any(is_shell_true_only_signal(r) for r in items)
 
+    if any_user_controlled and any(contains_path_traversal_signal(r) for r in items):
+        return ("No", "Semgrep reports user-controlled input reaching a file path used for file access.")
+
+    if any(contains_path_traversal_signal(r) for r in items):
+        return ("Yes", "Semgrep reports file path access, but no user-controlled input is shown reaching the file operation.")
+
+    if any_user_controlled and any(contains_ssrf_signal(r) for r in items):
+        return ("No", "Semgrep reports user-controlled input reaching an outbound HTTP request.")
+
+    if any(contains_ssrf_signal(r) for r in items):
+        return ("Yes", "Semgrep reports an outbound request pattern, but no user-controlled input is shown reaching the request target.")
+
+    if any(contains_insecure_transport_signal(r) for r in items):
+        return ("No", "Semgrep reports use of insecure HTTP transport on the affected outbound request.")
+
+    if any_user_controlled and any(contains_yaml_deserialization_signal(r) for r in items):
+        return ("No", "Semgrep reports user-controlled input reaching unsafe YAML deserialization.")
+
+    if any(contains_yaml_deserialization_signal(r) for r in items):
+        return ("Yes", "Semgrep reports unsafe YAML deserialization, but no user-controlled input is shown reaching the parser.")
+
+    if any_user_controlled and any(contains_pickle_deserialization_signal(r) for r in items):
+        return ("No", "Semgrep reports user-controlled input reaching unsafe pickle deserialization.")
+
+    if any(contains_pickle_deserialization_signal(r) for r in items):
+        return ("Yes", "Semgrep reports unsafe pickle deserialization, but no user-controlled input is shown reaching pickle.loads.")
+
     if any(has_user_controlled_source(r) and contains_sql_injection_signal(r) for r in items):
-        return (
-            "No",
-            "Semgrep reports user-controlled input reaching SQL query construction/execution."
-        )
+        return ("No", "Semgrep reports user-controlled input reaching SQL query construction/execution.")
 
     if any(contains_sql_injection_signal(r) for r in items):
-        return (
-            "Yes",
-            "Semgrep reports SQL query construction, but no user-controlled input is shown reaching the query."
-        )
+        return ("Yes", "Semgrep reports SQL query construction, but no user-controlled input is shown reaching the query.")
 
     if any(has_user_controlled_source(r) and contains_code_injection_signal(r) for r in items):
-        return (
-            "No",
-            "Semgrep reports user-controlled input reaching eval-style code execution."
-        )
+        return ("No", "Semgrep reports user-controlled input reaching eval-style code execution.")
 
     if any(contains_code_injection_signal(r) for r in items):
-        return (
-            "Yes",
-            "Semgrep reports eval-style execution, but no user-controlled input is shown reaching the expression."
-        )
+        return ("Yes", "Semgrep reports eval-style execution, but no user-controlled input is shown reaching the expression.")
 
     if any_user_controlled and any_command_injection:
-        return (
-            "No",
-            "Semgrep reports user-controlled data reaching subprocess execution on the affected line."
-        )
+        return ("No", "Semgrep reports user-controlled data reaching subprocess execution on the affected line.")
 
     if any_shell_true and not any_user_controlled:
-        return (
-            "Yes",
-            "The finding is a shell=True hardening issue, but the available evidence does not show user-controlled input reaching the command."
-        )
+        return ("Yes", "The finding is a shell=True hardening issue, but the available evidence does not show user-controlled input reaching the command.")
 
-    return (
-        "Unclear",
-        "The static finding does not provide enough context to fully confirm exploitability."
-    )
-
+    return ("Unclear", "The static finding does not provide enough context to fully confirm exploitability.")
 
 def cluster_key(result):
     """
-    Group findings by affected location first.
-    This keeps duplicate Semgrep rules on the same vulnerable line together.
+    Group findings by vulnerability family when the same target produces duplicate Semgrep findings.
+    Otherwise, group by affected file and line.
     """
     path = result.get("path", "unknown")
     line = get_line(result)
+
+    if contains_path_traversal_signal(result):
+        return f"{path}:path-traversal"
+
+    if contains_ssrf_signal(result):
+        return f"{path}:ssrf"
+
+    if contains_insecure_transport_signal(result):
+        return f"{path}:insecure-transport"
+
+    if contains_yaml_deserialization_signal(result):
+        return f"{path}:yaml-deserialization"
+
+    if contains_pickle_deserialization_signal(result):
+        return f"{path}:pickle-deserialization"
+
     if contains_code_injection_signal(result):
         return f"{path}:code-injection"
-    return f"{path}:{line}"
 
+    return f"{path}:{line}"
 
 def simplify_finding(result):
     metadata = get_metadata(result)
