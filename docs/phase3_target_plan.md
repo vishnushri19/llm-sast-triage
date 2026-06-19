@@ -1,8 +1,8 @@
 # Phase 3 Target Plan
 
-Phase 3 expands the evaluation from 5 targets to 10 targets.
+Phase 3 expands the evaluation from 5 targets toward 10 targets.
 
-## New Candidate Targets
+## Batch 1 Candidate Targets
 
 | Target | Vulnerability Pattern | Expected Purpose |
 |---|---|---|
@@ -10,7 +10,12 @@ Phase 3 expands the evaluation from 5 targets to 10 targets.
 | ssrfapp | Server-side request forgery | Confirm scanner detection of user-controlled URL reaching outbound request |
 | yamlapp | Unsafe YAML deserialization | Confirm scanner detection of yaml.load on request body |
 | pickleapp | Unsafe pickle deserialization | Confirm scanner detection of pickle.loads on user-controlled payload |
-| redirectapp | Open redirect | Confirm scanner detection of user-controlled redirect target |
+
+## Batch 2 Candidate Target
+
+| Target | Vulnerability Pattern | Expected Purpose |
+|---|---|---|
+| redirectapp | Open redirect | Add only after Batch 1 is scanned and confirmed |
 
 ## Execution Rule
 
