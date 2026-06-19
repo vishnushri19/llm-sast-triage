@@ -221,59 +221,71 @@ The compression ratio measures how many raw findings are represented by each tri
 
 The full experiment can be reproduced by running `python scripts/run_pipeline.py`. This executes scanning, triage, and evaluation in order. The repository also includes a results snapshot, evaluation table, experiment manifest, and reproducibility guide so that the reported baseline can be inspected without relying only on generated local artifacts.
 
-# Results
-
-This section summarizes the current prototype evaluation.
-
-## Dataset
-
-The current evaluation uses five small Python targets:
-
-| Target | Purpose |
-|---|---|
-| `myapp` | Real subprocess command injection |
-| `evalapp` | Real eval code injection |
-| `sqlapp` | Real SQL injection |
-| `safeapp` | Subprocess hardening / false-positive case |
-| `safeevalapp` | Eval hardening / false-positive case |
-
-## Overall Results
-
-| Metric | Value |
-|---|---:|
-| Targets evaluated | 5 |
-| Total raw Semgrep findings | 9 |
-| Total LLM triage clusters | 5 |
-| Overall compression ratio | 1.80x |
-| Overall precision | 0.78 |
-| Overall recall | 1.00 |
-| Overall severity accuracy | 1.00 |
-| Overall false-positive triage accuracy | 1.00 |
-| Missing Semgrep check IDs | 0 |
-| Extra Semgrep check IDs | 0 |
-
-## Interpretation
-
-The prototype reduced nine raw Semgrep findings into five triage clusters while preserving all scanner check IDs. The initial results show that deterministic clustering can reduce duplicate or related findings without losing scanner evidence.
-
-The precision value is lower than 1.00 because the dataset intentionally includes false-positive or hardening-only findings. This is expected. The more important measurement for those cases is false-positive triage accuracy, which is currently 1.00 on the initial dataset.
-
-The current result should be treated as an early validation of the pipeline design, not as a general claim about all SAST findings or all application frameworks.
+# Results
+
+## Dataset
+
+The Phase 3 evaluation uses ten Python targets. The dataset includes confirmed vulnerability paths and hardening-oriented cases. The targets cover command injection, eval/code injection, SQL injection, path traversal, SSRF, insecure transport, unsafe YAML deserialization, unsafe pickle deserialization, open redirect, and two likely false-positive or hardening-only cases.
+
+The evaluation remains intentionally controlled. Each Semgrep finding, label, and triage cluster can be manually inspected. The goal is to validate the scanner-first workflow and evidence-preservation behavior before scaling to larger real-world repositories.
+
+## Overall Results
+
+Across the ten targets, Semgrep produced 19 raw findings. The triage pipeline reduced these findings into 11 final clusters, giving an overall compression ratio of 1.73x. The evaluation produced 0.89 precision, 1.00 recall, 1.00 severity accuracy, and 1.00 false-positive triage accuracy.
+
+No Semgrep check IDs were dropped or invented. Total missing check IDs were 0, and total extra check IDs were 0.
+
+## Interpretation
+
+The results show that the pipeline continues to preserve scanner evidence while expanding to additional vulnerability classes. The system grouped related Semgrep findings into fewer analyst-facing clusters while preserving the original check IDs, file paths, and line references.
+
+The precision score remained below 1.00 because the dataset intentionally includes hardening-oriented and likely false-positive findings. This is useful for testing whether the workflow can distinguish confirmed exploit paths from findings that should receive lower-priority review.
+
+The strongest result is evidence preservation. Even after clustering and LLM enrichment, the final output retained all Semgrep check IDs and did not introduce unsupported check IDs. This supports the paper claim that the LLM can be used as an explanation layer without becoming the source of truth.
+
+## Phase 3 Result Summary
+
+| Metric | Result |
+|---|---:|
+| Targets evaluated | 10 |
+| Total raw findings | 19 |
+| Total LLM clusters | 11 |
+| Overall compression ratio | 1.73x |
+| Overall precision | 0.89 |
+| Overall recall | 1.00 |
+| Overall severity accuracy | 1.00 |
+| Overall false-positive triage accuracy | 1.00 |
+| Total missing check IDs | 0 |
+| Total extra check IDs | 0 |
 
 ## Evaluation Table
 
-Table 1 summarizes the initial five-target evaluation.
+Table 1 summarizes the ten-target Phase 3 evaluation.
 
-| Target | Raw Findings | LLM Clusters | Compression | TP Labels | FP Labels | Precision | Recall | Severity Accuracy | FP Triage Accuracy |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| myapp | 3 | 1 | 3.00x | 3 | 0 | 1.00 | 1.00 | 1.00 | 1.00 |
-| evalapp | 3 | 1 | 3.00x | 3 | 0 | 1.00 | 1.00 | 1.00 | 1.00 |
-| sqlapp | 1 | 1 | 1.00x | 1 | 0 | 1.00 | 1.00 | 1.00 | 1.00 |
-| safeapp | 1 | 1 | 1.00x | 0 | 1 | 0.00 | 0.00 | 1.00 | 1.00 |
-| safeevalapp | 1 | 1 | 1.00x | 0 | 1 | 0.00 | 0.00 | 1.00 | 1.00 |
-| **Overall** | **9** | **5** | **1.80x** | **7** | **2** | **0.78** | **1.00** | **1.00** | **1.00** |
+| Target | Pattern | Raw Findings | LLM Clusters | Notes |
+|---|---|---:|---:|---|
+| myapp | Command injection | 3 | 1 | Confirmed user-controlled subprocess path |
+| safeapp | Subprocess hardening | 1 | 1 | Likely false-positive / hardening-only case |
+| evalapp | Eval/code injection | 3 | 1 | Confirmed user-controlled eval path |
+| safeevalapp | Eval hardening | 1 | 1 | Likely false-positive / hardening-only case |
+| sqlapp | SQL injection | 1 | 1 | Confirmed user-controlled SQL construction |
+| pathapp | Path traversal | 2 | 1 | Confirmed user-controlled file path access |
+| ssrfapp | SSRF and insecure transport | 3 | 2 | SSRF cluster plus insecure transport cluster |
+| yamlapp | Unsafe YAML deserialization | 2 | 1 | Confirmed request body reaching yaml.load |
+| pickleapp | Unsafe pickle deserialization | 2 | 1 | Confirmed user-controlled pickle.loads path |
+| redirectapp | Open redirect | 1 | 1 | Confirmed user-controlled redirect target |
+| **Overall** | **All targets** | **19** | **11** | **1.73x compression ratio** |
 
-The results show that the pipeline reduced nine raw findings into five clusters while preserving scanner evidence. The overall precision is lower than recall because the dataset intentionally includes hardening-only and likely false-positive cases, but severity accuracy and false-positive triage accuracy remained perfect in this initial evaluation.
+| Metric | Result |
+|---|---:|
+| Precision | 0.89 |
+| Recall | 1.00 |
+| Severity accuracy | 1.00 |
+| False-positive triage accuracy | 1.00 |
+| Missing check IDs | 0 |
+| Extra check IDs | 0 |
+
+The results show that the pipeline reduced 19 raw Semgrep findings into 11 triage clusters while preserving all scanner check IDs. This supports the scanner-first design goal: the LLM enriches the analyst-facing explanation, while deterministic validation protects the evidence trail.
 
 # Limitations and Threats to Validity
 
