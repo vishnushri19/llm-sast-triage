@@ -1,0 +1,18 @@
+[
+  {
+    "check_id": "python.flask.security.insecure-deserialization.insecure-deserialization",
+    "path": "examples/pickleapp/app.py",
+    "line": 10,
+    "tp": true,
+    "severity": "High",
+    "category": "Unsafe Pickle Deserialization"
+  },
+  {
+    "check_id": "python.lang.security.deserialization.pickle.avoid-pickle",
+    "path": "examples/pickleapp/app.py",
+    "line": 10,
+    "tp": true,
+    "severity": "High",
+    "category": "Unsafe Pickle Deserialization"
+  }
+]

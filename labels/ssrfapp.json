@@ -1,0 +1,26 @@
+[
+  {
+    "check_id": "python.django.security.injection.ssrf.ssrf-injection-requests.ssrf-injection-requests",
+    "path": "examples/ssrfapp/app.py",
+    "line": 8,
+    "tp": true,
+    "severity": "High",
+    "category": "SSRF"
+  },
+  {
+    "check_id": "python.flask.security.injection.ssrf-requests.ssrf-requests",
+    "path": "examples/ssrfapp/app.py",
+    "line": 9,
+    "tp": true,
+    "severity": "High",
+    "category": "SSRF"
+  },
+  {
+    "check_id": "python.lang.security.audit.insecure-transport.requests.request-with-http.request-with-http",
+    "path": "examples/ssrfapp/app.py",
+    "line": 9,
+    "tp": true,
+    "severity": "Low",
+    "category": "Insecure Transport"
+  }
+]

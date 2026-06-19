@@ -1,0 +1,18 @@
+[
+  {
+    "check_id": "python.flask.security.insecure-deserialization.insecure-deserialization",
+    "path": "examples/yamlapp/app.py",
+    "line": 9,
+    "tp": true,
+    "severity": "High",
+    "category": "Unsafe YAML Deserialization"
+  },
+  {
+    "check_id": "python.lang.security.deserialization.avoid-pyyaml-load.avoid-pyyaml-load",
+    "path": "examples/yamlapp/app.py",
+    "line": 9,
+    "tp": true,
+    "severity": "High",
+    "category": "Unsafe YAML Deserialization"
+  }
+]
